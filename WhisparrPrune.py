@@ -64,13 +64,13 @@ def delete_scene(scene_id):
     return False
 
 # Main function
-def prune_scenes(dry_run):
+def prune_scenes(dry_run, days_old):
     scene_ids = get_scene_ids()
     if not scene_ids:
         logging.error("No scenes found.")
         return
 
-    two_weeks_ago = datetime.now() - timedelta(days=14)
+    threshold_date = datetime.now() - timedelta(days=days_old)
     scenes_to_delete = []
     successful_deletes = 0
     failed_deletes = 0
@@ -83,11 +83,11 @@ def prune_scenes(dry_run):
             release_date_str = scene.get("releaseDate", "")
             if release_date_str:
                 release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
-                if release_date < two_weeks_ago:
+                if release_date < threshold_date:
                     scenes_to_delete.append(scene['id'])
 
     if dry_run:
-        logging.info(f"[DRY RUN] Scenes older than 14 days: {scenes_to_delete}")
+        logging.info(f"[DRY RUN] Scenes older than {days_old} days: {scenes_to_delete}")
     else:
         for scene_id in scenes_to_delete:
             success = delete_scene(scene_id)
@@ -102,8 +102,9 @@ def prune_scenes(dry_run):
 
 # Command line argument parsing
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prune scenes from Whisparr older than 14 days.")
+    parser = argparse.ArgumentParser(description="Prune scenes from Whisparr older than a specified number of days.")
     parser.add_argument('--check', action='store_true', help="Perform a dry-run without deleting scenes.")
+    parser.add_argument('-d', '--days', type=int, default=14, help="Number of days old the scene must be before deletion (default: 14)")
     args = parser.parse_args()
 
-    prune_scenes(args.check)
+    prune_scenes(args.check, args.days)
