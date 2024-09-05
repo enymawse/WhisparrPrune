@@ -10,8 +10,14 @@ load_dotenv()
 
 # Constants
 WHISPARR_BASEURL = os.getenv("WHISPARR_BASEURL")
-if not WHISPARR_BASEURL:
-    raise EnvironmentError("WHISPARR_BASEURL is not set in the environment")
+WHISPARR_APIKEY = os.getenv("WHISPARR_APIKEY")
+if not WHISPARR_BASEURL or not WHISPARR_APIKEY:
+    raise EnvironmentError("WHISPARR_BASEURL or WHISPARR_APIKEY is not set in the environment")
+
+HEADERS_WHISPARR = {
+    'X-Api-Key': WHISPARR_APIKEY,
+    'Content-Type': 'application/json'
+}
 
 SCENES_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/list"
 DELETE_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/{{sceneID}}/?deleteFiles=true&addImportExclusion=true"
@@ -29,7 +35,7 @@ error_logger.addHandler(error_handler)
 # Get the list of scene IDs from Whisparr
 def get_scene_ids():
     try:
-        response = requests.get(SCENES_ENDPOINT)
+        response = requests.get(SCENES_ENDPOINT, headers=HEADERS_WHISPARR)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -39,7 +45,7 @@ def get_scene_ids():
 # Get scene details by scene ID
 def get_scene_details(scene_ids):
     try:
-        response = requests.post(BULK_ENDPOINT, json=scene_ids)
+        response = requests.post(BULK_ENDPOINT, json=scene_ids, headers=HEADERS_WHISPARR)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -49,7 +55,7 @@ def get_scene_details(scene_ids):
 # Delete a scene by scene ID
 def delete_scene(scene_id):
     try:
-        response = requests.delete(DELETE_ENDPOINT.format(sceneID=scene_id))
+        response = requests.delete(DELETE_ENDPOINT.format(sceneID=scene_id), headers=HEADERS_WHISPARR)
         if response.status_code == 404:
             message = response.json().get('message')
             if f"Movie with ID {scene_id} does not exist" in message:
@@ -64,13 +70,13 @@ def delete_scene(scene_id):
     return False
 
 # Main function
-def prune_scenes(dry_run, days_old):
+def prune_scenes(dry_run, days):
     scene_ids = get_scene_ids()
     if not scene_ids:
         logging.error("No scenes found.")
         return
 
-    threshold_date = datetime.now() - timedelta(days=days_old)
+    days_ago = datetime.now() - timedelta(days=days)
     scenes_to_delete = []
     successful_deletes = 0
     failed_deletes = 0
@@ -82,12 +88,20 @@ def prune_scenes(dry_run, days_old):
         for scene in scene_details:
             release_date_str = scene.get("releaseDate", "")
             if release_date_str:
-                release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
-                if release_date < threshold_date:
-                    scenes_to_delete.append(scene['id'])
+                try:
+                    if len(release_date_str) == 7:  # Format: YYYY-MM
+                        release_date_str += "-01"  # Assume the first day of the month
+                    release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
+                    if release_date < days_ago:
+                        scenes_to_delete.append(scene['id'])
+                except ValueError:
+                    if len(release_date_str) == 4:  # Format: YYYY
+                        logging.error(f"Invalid date format: Only year provided for scene ID {scene['id']}, skipping.")
+                    else:
+                        logging.error(f"Invalid date format for scene ID {scene['id']}: {release_date_str}, skipping.")
 
     if dry_run:
-        logging.info(f"[DRY RUN] Scenes older than {days_old} days: {scenes_to_delete}")
+        logging.info(f"[DRY RUN] Scenes older than {days} days: {scenes_to_delete}")
     else:
         for scene_id in scenes_to_delete:
             success = delete_scene(scene_id)
@@ -99,6 +113,7 @@ def prune_scenes(dry_run, days_old):
                 logging.error(f"Failed to delete scene ID {scene_id}")
 
     logging.info(f"Processed {len(scenes_to_delete)} scenes. Successful deletes: {successful_deletes}, Failed deletes: {failed_deletes}")
+
 
 # Command line argument parsing
 if __name__ == "__main__":
