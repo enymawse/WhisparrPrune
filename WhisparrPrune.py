@@ -84,8 +84,8 @@ def prune_scenes(dry_run, days):
 
     # Use tqdm for the progress bar
     with tqdm(total=len(scene_ids), desc="Processing scenes", unit="scene") as progress_bar:
-        for i in range(0, len(scene_ids), 10):
-            chunk = scene_ids[i:i+10]
+        for i in range(0, len(scene_ids), 10000):
+            chunk = scene_ids[i:i+10000]
             scene_details = get_scene_details(chunk)
 
             for scene in scene_details:
