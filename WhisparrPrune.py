@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import logging
 import argparse
 from dotenv import load_dotenv
+from tqdm import tqdm  # Import the tqdm library for the progress bar
 
 # Load environment variables from .env file
 load_dotenv()
@@ -81,45 +82,51 @@ def prune_scenes(dry_run, days):
     successful_deletes = 0
     failed_deletes = 0
 
-    for i in range(0, len(scene_ids), 10):
-        chunk = scene_ids[i:i+10]
-        scene_details = get_scene_details(chunk)
+    # Use tqdm for the progress bar
+    with tqdm(total=len(scene_ids), desc="Processing scenes", unit="scene") as progress_bar:
+        for i in range(0, len(scene_ids), 10):
+            chunk = scene_ids[i:i+10]
+            scene_details = get_scene_details(chunk)
 
-        for scene in scene_details:
-            release_date_str = scene.get("releaseDate", "")
-            if release_date_str:
-                try:
-                    if len(release_date_str) == 7:  # Format: YYYY-MM
-                        release_date_str += "-01"  # Assume the first day of the month
-                    release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
-                    if release_date < days_ago:
-                        scenes_to_delete.append(scene['id'])
-                except ValueError:
-                    if len(release_date_str) == 4:  # Format: YYYY
-                        logging.error(f"Invalid date format: Only year provided for scene ID {scene['id']}, skipping.")
-                    else:
-                        logging.error(f"Invalid date format for scene ID {scene['id']}: {release_date_str}, skipping.")
+            for scene in scene_details:
+                release_date_str = scene.get("releaseDate", "")
+                if release_date_str:
+                    try:
+                        if len(release_date_str) == 7:  # Format: YYYY-MM
+                            release_date_str += "-01"  # Assume the first day of the month
+                        release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
+                        if release_date < days_ago:
+                            scenes_to_delete.append(scene['id'])
+                    except ValueError:
+                        if len(release_date_str) == 4:  # Format: YYYY
+                            logging.error(f"Invalid date format: Only year provided for scene ID {scene['id']}, skipping.")
+                        else:
+                            logging.error(f"Invalid date format for scene ID {scene['id']}: {release_date_str}, skipping.")
+            
+            progress_bar.update(len(chunk))  # Update the progress bar by the size of the chunk processed
 
     if dry_run:
         logging.info(f"[DRY RUN] Scenes older than {days} days: {scenes_to_delete}")
     else:
-        for scene_id in scenes_to_delete:
-            success = delete_scene(scene_id)
-            if success:
-                successful_deletes += 1
-                logging.info(f"Successfully deleted scene ID {scene_id}")
-            else:
-                failed_deletes += 1
-                logging.error(f"Failed to delete scene ID {scene_id}")
+        # Progress bar for deletion process
+        with tqdm(total=len(scenes_to_delete), desc="Deleting scenes", unit="scene") as delete_bar:
+            for scene_id in scenes_to_delete:
+                success = delete_scene(scene_id)
+                if success:
+                    successful_deletes += 1
+                    logging.info(f"Successfully deleted scene ID {scene_id}")
+                else:
+                    failed_deletes += 1
+                    logging.error(f"Failed to delete scene ID {scene_id}")
+                delete_bar.update(1)  # Update the progress bar for each deletion attempt
 
     logging.info(f"Processed {len(scenes_to_delete)} scenes. Successful deletes: {successful_deletes}, Failed deletes: {failed_deletes}")
 
-
 # Command line argument parsing
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prune scenes from Whisparr older than a specified number of days.")
+    parser = argparse.ArgumentParser(description="Prune scenes from Whisparr older than the given number of days.")
     parser.add_argument('--check', action='store_true', help="Perform a dry-run without deleting scenes.")
-    parser.add_argument('-d', '--days', type=int, default=14, help="Number of days old the scene must be before deletion (default: 14)")
+    parser.add_argument('-d', '--days', type=int, default=14, help="Number of days to consider for deletion (default: 14 days).")
     args = parser.parse_args()
 
     prune_scenes(args.check, args.days)
