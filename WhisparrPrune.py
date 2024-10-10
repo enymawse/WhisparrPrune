@@ -21,7 +21,7 @@ HEADERS_WHISPARR = {
 }
 
 SCENES_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/list"
-DELETE_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/{{sceneID}}/?deleteFiles=true&addImportExclusion=true"
+DELETE_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/{{sceneID}}/?deleteFiles=true&addImportExclusion=false"
 BULK_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/bulk"
 LOG_FILE = "whisparr_prune.log"
 ERROR_LOG_FILE = "whisparr_prune_error.log"
