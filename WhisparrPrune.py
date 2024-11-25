@@ -23,6 +23,7 @@ HEADERS_WHISPARR = {
 SCENES_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/list"
 DELETE_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/{{sceneID}}/?deleteFiles=true&addImportExclusion=false"
 BULK_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/bulk"
+TAGS_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/tag"
 LOG_FILE = "whisparr_prune.log"
 ERROR_LOG_FILE = "whisparr_prune_error.log"
 
@@ -53,6 +54,16 @@ def get_scene_details(scene_ids):
         error_logger.error(f"Failed to get scene details: {e}")
         return []
 
+# Get all the tags
+def get_tags():
+    try:
+        response = requests.get(TAGS_ENDPOINT, headers=HEADERS_WHISPARR)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        error_logger.error(f"Failed to get tags: {e}")
+        return []
+
 # Delete a scene by scene ID
 def delete_scene(scene_id):
     try:
@@ -70,12 +81,19 @@ def delete_scene(scene_id):
         error_logger.error(f"Failed to delete scene {scene_id}: {e}")
     return False
 
-# Main function
-def prune_scenes(dry_run, days):
+def prune_scenes(dry_run, days, include_tags):
     scene_ids = get_scene_ids()
+    tags = get_tags()
     if not scene_ids:
         logging.error("No scenes found.")
         return
+
+    # Map tag labels to tag IDs
+    include_tag_ids = {tag['id'] for tag in tags if tag['label'] in include_tags}
+
+    # If no tags are provided, consider all scenes
+    if not include_tags:
+        logging.info("No tags provided. All scenes will be considered for pruning.")
 
     days_ago = datetime.now() - timedelta(days=days)
     scenes_to_delete = []
@@ -85,10 +103,17 @@ def prune_scenes(dry_run, days):
     # Use tqdm for the progress bar
     with tqdm(total=len(scene_ids), desc="Processing scenes", unit="scene") as progress_bar:
         for i in range(0, len(scene_ids), 10000):
-            chunk = scene_ids[i:i+10000]
+            chunk = scene_ids[i:i + 10000]
             scene_details = get_scene_details(chunk)
 
             for scene in scene_details:
+                # Skip scenes if tags are provided and there's no match
+                if include_tags:
+                    scene_tags = set(scene.get("tags", []))
+                    if not include_tag_ids.intersection(scene_tags):
+                        continue
+
+                # Check the release date
                 release_date_str = scene.get("releaseDate", "")
                 if release_date_str:
                     try:
@@ -102,7 +127,7 @@ def prune_scenes(dry_run, days):
                             logging.error(f"Invalid date format: Only year provided for scene ID {scene['id']}, skipping.")
                         else:
                             logging.error(f"Invalid date format for scene ID {scene['id']}: {release_date_str}, skipping.")
-            
+
             progress_bar.update(len(chunk))  # Update the progress bar by the size of the chunk processed
 
     if dry_run:
@@ -127,6 +152,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prune scenes from Whisparr older than the given number of days.")
     parser.add_argument('--check', action='store_true', help="Perform a dry-run without deleting scenes.")
     parser.add_argument('-d', '--days', type=int, default=14, help="Number of days to consider for deletion (default: 14 days).")
+    parser.add_argument('-t', '--tags', nargs='*', default=[], help="List of tag labels to prune (only these tags will be considered).")
     args = parser.parse_args()
 
-    prune_scenes(args.check, args.days)
+    prune_scenes(args.check, args.days, args.tags)
+

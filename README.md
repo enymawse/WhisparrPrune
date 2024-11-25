@@ -7,6 +7,7 @@ This Python script is designed to prune scenes from a Whisparr instance based on
 ## Features
 
 - **Prune Scenes by Release Date**: Deletes scenes older than a user-specified number of days.
+- **Prune Scenes by Tag**: Optionally filters scenes to prune based on specified tags.
 - **Dry-Run Mode**: Allows you to check which scenes would be deleted without actually deleting them.
 - **Progress Tracking**: Uses a progress bar to track the progress of both scene processing and deletion.
 - **Logging**: Logs actions, errors, and results to log files for easy troubleshooting and auditing.
@@ -46,33 +47,43 @@ pip install -r requirements.txt
 
 Run the script from the command line, specifying the number of days after which scenes should be pruned.
 
-### Command Line Options
+### Options
 
-- **`--check`**: Perform a dry-run without actually deleting scenes. Use this to verify what would be deleted.
-- **`-d`, `--days`**: Specify the number of days (default is 14 days). Any scenes older than this will be deleted.
+| Option         | Description                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| `--check`      | Perform a dry-run without deleting any scenes.                                                       |
+| `-d`, `--days` | Number of days to consider for pruning (default: 14).                                                |
+| `-t`, `--tags` | List of tag labels to filter the scenes for pruning. If not provided, all scenes will be considered. |
 
 ### Examples
 
-1. **Dry-Run Mode (Check which scenes would be deleted)**:
+#### Prune all scenes older than 30 days
 
-   ```bash
-   python whisparr_prune.py --check -d 30
-   ```
+```bash
+python script.py -d 30
+```
 
-   This will list scenes older than 30 days without deleting them.
+#### Dry-run to check which scenes older than 30 days would be pruned
 
-2. **Prune Scenes Older Than 14 Days (Default)**:
+```bash
+python script.py --check -d 30
+```
 
-   ```bash
-   python whisparr_prune.py
-   ```
+#### Prune scenes older than 30 days with specific tags
 
-   This will prune all scenes older than 14 days.
+```bash
+python script.py -d 30 -t stashdb-favorite stashdb-favorite-performer
+```
 
-3. **Prune Scenes Older Than 60 Days**:
-   ```bash
-   python whisparr_prune.py -d 60
-   ```
+#### Dry-run with tag filtering
+
+```bash
+python script.py --check -d 30 -t stashdb-favorite stashdb-favorite-performer
+```
+
+### Behavior When Tags Are Not Provided
+
+If the `--tags` argument is not specified, the script will consider all scenes older than the specified number of days for pruning. ```
 
 ## How It Works
 
