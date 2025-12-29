@@ -119,7 +119,7 @@ def prune_scenes(dry_run, days, include_tags):
                     try:
                         if len(release_date_str) == 7:  # Format: YYYY-MM
                             release_date_str += "-01"  # Assume the first day of the month
-                        release_date = datetime.strptime(release_date_str, "%Y-%m-%d")
+                        release_date = datetime.strptime(release_date_str, "%Y-%m-%dT%H:%M:%SZ")
                         if release_date < days_ago:
                             scenes_to_delete.append(scene['id'])
                     except ValueError:
