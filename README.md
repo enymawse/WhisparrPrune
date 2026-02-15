@@ -105,13 +105,32 @@ This repo includes `.github/workflows/container-publish.yml` to build multi-arch
 
 `ghcr.io/enymawse/whisparrprune`
 
-Workflow triggers:
+Automated flow:
 
-- Pushes to `main`
-- Version tags matching `v*`
-- Manual `workflow_dispatch`
+- Pull requests to `main`: build only (no push)
+- Pushes to `main`: run `semantic-release` using Conventional Commits
+- If a release is created, publish image tags:
+  - `vX.Y.Z`
+  - `vX.Y`
+  - `vX`
+  - `latest`
+  - `sha-<commit>`
 
-On pull requests, the workflow builds without pushing.
+Release config lives in `.releaserc.json`.
+
+Conventional Commit impact:
+
+- `fix:` -> patch release
+- `feat:` -> minor release
+- `feat!:` or `BREAKING CHANGE:` -> major release
+
+Example commit messages:
+
+- `fix: handle missing releaseDate values`
+- `feat: add tag-based filtering examples`
+- `feat!: change default prune behavior`
+
+If you use squash merges, make sure the squash commit title also follows Conventional Commits, since that is what `semantic-release` reads on `main`.
 
 ## TrueNAS SCALE Scheduler Example
 
