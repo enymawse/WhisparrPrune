@@ -2,124 +2,149 @@
 
 ## Overview
 
-This Python script is designed to prune scenes from a Whisparr instance based on their release date. It interacts with the Whisparr API to identify and delete scenes older than a specified number of days. The script can also perform a dry-run where no deletions are made, allowing you to verify which scenes would be deleted.
+This script prunes scenes from Whisparr based on release date, with optional tag filtering. It can run in dry-run mode (`--check`) to preview deletions before making changes.
 
 ## Features
 
-- **Prune Scenes by Release Date**: Deletes scenes older than a user-specified number of days.
-- **Prune Scenes by Tag**: Optionally filters scenes to prune based on specified tags.
-- **Dry-Run Mode**: Allows you to check which scenes would be deleted without actually deleting them.
-- **Progress Tracking**: Uses a progress bar to track the progress of both scene processing and deletion.
-- **Logging**: Logs actions, errors, and results to log files for easy troubleshooting and auditing.
+- Prune scenes older than a configurable number of days
+- Optional tag filtering
+- Dry-run mode for safe validation
+- Progress bars for fetch/delete phases
+- Separate success and error logs
 
 ## Requirements
 
-- Python 3.x
-- The following Python libraries:
-  - `requests`
-  - `tqdm`
-  - `python-dotenv`
+- Python 3.x (for direct execution)
+- Docker (for containerized execution)
+- Whisparr API URL and API key
 
-Install these dependencies via pip:
+Python dependencies:
+
+- `requests`
+- `python-dotenv`
+- `tqdm`
+
+## Environment Variables
+
+Copy `.env.example` to `.env`, then set your values:
 
 ```bash
-git clone https://github.com/enymawse/WhisparrPrune.git && \
-cd WhisparrPrune && \
+cp .env.example .env
+```
+
+`.env` contents:
+
+```env
+WHISPARR_BASEURL=http://localhost:7878
+WHISPARR_APIKEY=your_whisparr_api_key
+```
+
+## Run Directly (Python)
+
+Install and run:
+
+```bash
+git clone https://github.com/enymawse/WhisparrPrune.git
+cd WhisparrPrune
 pip install -r requirements.txt
+python WhisparrPrune.py --check -d 30
 ```
 
-## Setup
+## Run in Docker
 
-1. **Whisparr API Key and Base URL**:
-
-   - You must provide your Whisparr API base URL and API key through environment variables. Create a `.env` file in the same directory as the script with the following content:
-
-   ```env
-   WHISPARR_BASEURL=http://localhost:7878
-   WHISPARR_APIKEY=your_whisparr_api_key
-   ```
-
-2. **Logging**:
-   - The script logs its operations to `whisparr_prune.log`.
-   - Errors are logged separately in `whisparr_prune_error.log`.
-
-## Usage
-
-Run the script from the command line, specifying the number of days after which scenes should be pruned.
-
-### Options
-
-| Option         | Description                                                                                          |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| `--check`      | Perform a dry-run without deleting any scenes.                                                       |
-| `-d`, `--days` | Number of days to consider for pruning (default: 14).                                                |
-| `-t`, `--tags` | List of tag labels to filter the scenes for pruning. If not provided, all scenes will be considered. |
-
-### Examples
-
-#### Prune all scenes older than 30 days
+Build locally:
 
 ```bash
-python script.py -d 30
+docker build -t whisparr-prune:local .
 ```
 
-#### Dry-run to check which scenes older than 30 days would be pruned
+Dry-run example:
 
 ```bash
-python script.py --check -d 30
+docker run --rm --env-file .env whisparr-prune:local --check -d 30
 ```
 
-#### Prune scenes older than 30 days with specific tags
+Live prune example:
 
 ```bash
-python script.py -d 30 -t stashdb-favorite stashdb-favorite-performer
+docker run --rm --env-file .env whisparr-prune:local -d 30
 ```
 
-#### Dry-run with tag filtering
+Using Docker Compose:
 
 ```bash
-python script.py --check -d 30 -t stashdb-favorite stashdb-favorite-performer
+docker compose run --rm whisparr-prune --check -d 30
 ```
 
-### Behavior When Tags Are Not Provided
+Tag-filtered dry-run with Docker:
 
-If the `--tags` argument is not specified, the script will consider all scenes older than the specified number of days for pruning. ```
+```bash
+docker run --rm --env-file .env whisparr-prune:local --check -d 30 -t stashdb-favorite stashdb-favorite-performer
+```
 
-## How It Works
+Tag-filtered dry-run with Docker Compose:
 
-1. **Fetching Scene IDs**:
+```bash
+docker compose run --rm whisparr-prune --check -d 30 -t stashdb-favorite stashdb-favorite-performer
+```
 
-   - The script retrieves a list of all scene IDs from your Whisparr instance using the `/api/v3/movie/list` endpoint.
+Configure tags in `compose.yaml`:
 
-2. **Filtering Scenes by Release Date**:
+```yaml
+command:
+  - "-d"
+  - "30"
+  - "-t"
+  - "stashdb-favorite"
+  - "stashdb-favorite-performer"
+```
 
-   - For each scene, the release date is checked against the provided threshold (e.g., 14 days ago).
-   - Scenes that are older than the threshold are marked for deletion.
+## Container Publishing (GHCR)
 
-3. **Deleting Scenes**:
+This repo includes `.github/workflows/container-publish.yml` to build multi-arch images (`linux/amd64`, `linux/arm64`) and publish to:
 
-   - In live mode (non-dry-run), the script deletes each scene using the `/api/v3/movie/{sceneID}` endpoint.
-   - If a scene cannot be deleted, an error is logged in `whisparr_prune_error.log`.
+`ghcr.io/enymawse/whisparrprune`
 
-4. **Progress Bars**:
-   - Two progress bars are displayed: one for scene processing and another for the deletion process.
+Workflow triggers:
 
-## Logs
+- Pushes to `main`
+- Version tags matching `v*`
+- Manual `workflow_dispatch`
 
-- **Main Log (`whisparr_prune.log`)**:
-  - Contains details about successfully processed and deleted scenes.
-- **Error Log (`whisparr_prune_error.log`)**:
-  - Logs any errors encountered, including issues with API requests or date formatting.
+On pull requests, the workflow builds without pushing.
+
+## TrueNAS SCALE Scheduler Example
+
+For a TrueNAS Cron Job command:
+
+```bash
+docker run --rm --env-file /mnt/<pool>/scripts/whisparrprune.env ghcr.io/enymawse/whisparrprune:latest -d 30 >> /mnt/<pool>/scripts/whisparrprune.log 2>&1
+```
+
+This keeps scheduling in TrueNAS and avoids running cron inside the container.
+
+## Script Options
+
+| Option         | Description                                |
+| -------------- | ------------------------------------------ |
+| `--check`      | Perform a dry-run without deleting scenes  |
+| `-d`, `--days` | Days threshold for pruning (default: `14`) |
+| `-t`, `--tags` | Optional tag labels to include for pruning |
+
+If `--tags` is omitted, all scenes older than the threshold are considered.
+To include multiple tags, pass each label as a separate value after `-t`.
+
+## Logging
+
+- Main log: `whisparr_prune.log`
+- Error log: `whisparr_prune_error.log`
 
 ## Notes
 
-- **Date Handling**: The script assumes the first day of the month if the release date only provides the year and month (`YYYY-MM`). If only the year is provided (`YYYY`), the script logs an error and skips that scene.
-- **Batch Processing**: The script processes scenes in batches of 10,000 to optimize the number of API requests.
+- If a release date is `YYYY-MM`, the script assumes day `01`
+- If a release date is only `YYYY`, the scene is skipped and logged as invalid
+- Scenes are processed in batches of 10,000 IDs
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
-
----
-
-If you have any questions or need further assistance, feel free to reach out.
+MIT. See `LICENSE`.

@@ -1,0 +1,25 @@
+services:
+  whisparr-prune:
+    # Builds locally by default
+    build:
+      context: .
+    image: whisparr-prune:local
+
+    # To pull from GHCR instead, remove `build` and set:
+    # image: ghcr.io/enymawse/whisparrprune:latest
+
+    env_file:
+      - .env
+
+    # Override args at runtime.
+    # Each tag label is passed as its own argument after -t.
+    command:
+      - "-d"
+      - "30"
+      - "-t"
+      - "stashdb-favorite"
+      - "stashdb-favorite-performer"
+    # Optional dry-run:
+    # command: ["--check", "-d", "30", "-t", "stashdb-favorite", "stashdb-favorite-performer"]
+
+    restart: "no"
