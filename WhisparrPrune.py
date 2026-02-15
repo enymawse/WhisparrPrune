@@ -3,6 +3,7 @@ import requests
 from datetime import datetime, timedelta
 import logging
 import argparse
+import sys
 from dotenv import load_dotenv
 from tqdm import tqdm  # Import the tqdm library for the progress bar
 
@@ -26,13 +27,39 @@ BULK_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/movie/bulk"
 TAGS_ENDPOINT = f"{WHISPARR_BASEURL}/api/v3/tag"
 LOG_FILE = "whisparr_prune.log"
 ERROR_LOG_FILE = "whisparr_prune_error.log"
+LOG_DIR_ENV_VAR = "WHISPARRPRUNE_LOG_DIR"
+LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
+error_logger = logging.getLogger("error_logger")
 
-# Set up logging
-logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-error_logger = logging.getLogger('error_logger')
-error_handler = logging.FileHandler(ERROR_LOG_FILE)
-error_handler.setLevel(logging.ERROR)
-error_logger.addHandler(error_handler)
+def configure_logging(log_dir=None):
+    formatter = logging.Formatter(LOG_FORMAT)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.handlers.clear()
+
+    error_logger.handlers.clear()
+    error_logger.setLevel(logging.ERROR)
+    error_logger.propagate = True
+
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, LOG_FILE)
+        error_log_path = os.path.join(log_dir, ERROR_LOG_FILE)
+
+        main_handler = logging.FileHandler(log_path)
+        main_handler.setLevel(logging.DEBUG)
+        main_handler.setFormatter(formatter)
+        root_logger.addHandler(main_handler)
+
+        error_handler = logging.FileHandler(error_log_path)
+        error_handler.setLevel(logging.ERROR)
+        error_handler.setFormatter(formatter)
+        error_logger.addHandler(error_handler)
+    else:
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.DEBUG)
+        stdout_handler.setFormatter(formatter)
+        root_logger.addHandler(stdout_handler)
 
 # Get the list of scene IDs from Whisparr
 def get_scene_ids():
@@ -153,7 +180,8 @@ if __name__ == "__main__":
     parser.add_argument('--check', action='store_true', help="Perform a dry-run without deleting scenes.")
     parser.add_argument('-d', '--days', type=int, default=14, help="Number of days to consider for deletion (default: 14 days).")
     parser.add_argument('-t', '--tags', nargs='*', default=[], help="List of tag labels to prune (only these tags will be considered).")
+    parser.add_argument('--log-dir', default=os.getenv(LOG_DIR_ENV_VAR), help=f"Optional directory to write {LOG_FILE} and {ERROR_LOG_FILE}. By default logs are written to stdout.")
     args = parser.parse_args()
 
+    configure_logging(args.log_dir)
     prune_scenes(args.check, args.days, args.tags)
-

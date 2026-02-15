@@ -1,3 +1,5 @@
 .env
 spec/
 *.log
+
+__pycache__
