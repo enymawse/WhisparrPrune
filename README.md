@@ -10,7 +10,7 @@ This script prunes scenes from Whisparr based on release date, with optional tag
 - Optional tag filtering
 - Dry-run mode for safe validation
 - Progress bars for fetch/delete phases
-- Separate success and error logs
+- Stdout logging by default, optional file logging via log directory
 
 ## Requirements
 
@@ -37,6 +37,8 @@ cp .env.example .env
 ```env
 WHISPARR_BASEURL=http://localhost:7878
 WHISPARR_APIKEY=your_whisparr_api_key
+# Optional: write logs to files in this directory instead of stdout
+# WHISPARRPRUNE_LOG_DIR=/path/to/logs
 ```
 
 ## Run Directly (Python)
@@ -74,6 +76,12 @@ Using Docker Compose:
 
 ```bash
 docker compose run --rm whisparr-prune --check -d 30
+```
+
+Use a host log directory (writes `whisparr_prune.log` and `whisparr_prune_error.log`):
+
+```bash
+docker run --rm --env-file .env -e WHISPARRPRUNE_LOG_DIR=/logs -v ./logs:/logs whisparr-prune:local --check -d 30
 ```
 
 Tag-filtered dry-run with Docker:
@@ -149,14 +157,17 @@ This keeps scheduling in TrueNAS and avoids running cron inside the container.
 | `--check`      | Perform a dry-run without deleting scenes  |
 | `-d`, `--days` | Days threshold for pruning (default: `14`) |
 | `-t`, `--tags` | Optional tag labels to include for pruning |
+| `--log-dir`    | Optional directory for file logs (default: stdout) |
 
 If `--tags` is omitted, all scenes older than the threshold are considered.
 To include multiple tags, pass each label as a separate value after `-t`.
 
 ## Logging
 
-- Main log: `whisparr_prune.log`
-- Error log: `whisparr_prune_error.log`
+- Default: logs are written to stdout
+- Optional file logging: set `--log-dir` or `WHISPARRPRUNE_LOG_DIR`
+  - Main log: `whisparr_prune.log`
+  - Error log: `whisparr_prune_error.log`
 
 ## Notes
 
