@@ -1,0 +1,9 @@
+.git
+.github
+.env
+spec/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
